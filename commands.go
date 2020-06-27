@@ -6,11 +6,13 @@ import (
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	"github.com/jhillyerd/enmime"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 type command interface {
-	Execute(*client.Client, *imap.Message, io.Writer) error
+	Execute(*client.Client, *imap.Message, *enmime.Envelope, io.Writer) error
 }
 
 type commandTypeWrap struct {
@@ -31,6 +33,9 @@ func (c commandTypeWrap) rewrap(data []byte) (command, error) {
 	case "del_flags":
 		out = new(commandDelFlags)
 
+	case "get_attachment":
+		out = new(commandGetAttachment)
+
 	case "set_flags":
 		out = new(commandSetFlags)
 
@@ -46,7 +51,7 @@ type commandMove struct {
 	ToMailbox string `json:"to_mailbox"`
 }
 
-func (c commandMove) Execute(client *client.Client, msg *imap.Message, stdin io.Writer) error {
+func (c commandMove) Execute(client *client.Client, msg *imap.Message, mail *enmime.Envelope, stdin io.Writer) error {
 	s := &imap.SeqSet{}
 	s.AddNum(msg.Uid)
 
@@ -64,7 +69,7 @@ type commandAddFlags struct {
 	Flags []string `json:"flags"`
 }
 
-func (c commandAddFlags) Execute(client *client.Client, msg *imap.Message, stdin io.Writer) error {
+func (c commandAddFlags) Execute(client *client.Client, msg *imap.Message, mail *enmime.Envelope, stdin io.Writer) error {
 	var (
 		flags []interface{}
 		s     = &imap.SeqSet{}
@@ -85,7 +90,7 @@ type commandDelFlags struct {
 	Flags []string `json:"flags"`
 }
 
-func (c commandDelFlags) Execute(client *client.Client, msg *imap.Message, stdin io.Writer) error {
+func (c commandDelFlags) Execute(client *client.Client, msg *imap.Message, mail *enmime.Envelope, stdin io.Writer) error {
 	var (
 		flags []interface{}
 		s     = &imap.SeqSet{}
@@ -102,11 +107,28 @@ func (c commandDelFlags) Execute(client *client.Client, msg *imap.Message, stdin
 	)
 }
 
+type commandGetAttachment struct {
+	Filename string `json:"filename"`
+}
+
+func (c commandGetAttachment) Execute(client *client.Client, msg *imap.Message, mail *enmime.Envelope, stdin io.Writer) error {
+	a := attachmentFromMail(mail, c.Filename)
+	if a == nil {
+		log.WithFields(log.Fields{
+			"uid":      msg.Uid,
+			"filename": c.Filename,
+		}).Error("Requested attachment not found")
+		return errors.New("Attachment not found")
+	}
+
+	return errors.Wrap(json.NewEncoder(stdin).Encode(a), "Unable to encode attachment to JSON")
+}
+
 type commandSetFlags struct {
 	Flags []string `json:"flags"`
 }
 
-func (c commandSetFlags) Execute(client *client.Client, msg *imap.Message, stdin io.Writer) error {
+func (c commandSetFlags) Execute(client *client.Client, msg *imap.Message, mail *enmime.Envelope, stdin io.Writer) error {
 	var (
 		flags []interface{}
 		s     = &imap.SeqSet{}

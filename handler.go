@@ -15,31 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type mailTransport struct {
-	Attachments []string          `json:"attachments"`
-	Headers     map[string]string `json:"headers"`
-	HTML        string            `json:"html"`
-	Text        string            `json:"text"`
-}
-
-func mailToTransport(msg *enmime.Envelope) *mailTransport {
-	var out = &mailTransport{
-		Headers: map[string]string{},
-		HTML:    msg.HTML,
-		Text:    msg.Text,
-	}
-
-	for _, a := range msg.Attachments {
-		out.Attachments = append(out.Attachments, a.FileName)
-	}
-
-	for _, hn := range msg.GetHeaderKeys() {
-		out.Headers[hn] = msg.GetHeader(hn)
-	}
-
-	return out
-}
-
 type mailHandler struct {
 	Match   []matcher `yaml:"match"`
 	Command []string  `yaml:"command"`
@@ -89,7 +64,7 @@ func (m mailHandler) Process(imapClient *client.Client, msg *imap.Message, envel
 				continue
 			}
 
-			if err = c.Execute(imapClient, msg, stdin); err != nil {
+			if err = c.Execute(imapClient, msg, envelope, stdin); err != nil {
 				log.WithError(err).Error("Unable to execute command")
 				continue
 			}
