@@ -49,6 +49,7 @@ func (m mailHandler) Process(imapClient *client.Client, msg *imap.Message, envel
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			if scanner.Err() != nil {
+				log.WithError(err).Error("Stdout errored")
 				return
 			}
 
@@ -57,6 +58,11 @@ func (m mailHandler) Process(imapClient *client.Client, msg *imap.Message, envel
 				log.WithError(err).Error("Unable to unmarshal command")
 				continue
 			}
+
+			log.WithFields(log.Fields{
+				"type": cw.Type,
+				"uid":  msg.Uid,
+			}).Debug("Received command from script")
 
 			c, err := cw.rewrap(scanner.Bytes())
 			if err != nil {
