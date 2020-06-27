@@ -120,23 +120,7 @@ func (m matcher) Match(msg *enmime.Envelope) bool {
 		return true
 	}
 
-	switch strings.ToLower(m.Header) {
-
-	case "cc":
-		return m.matchString(msg.GetHeader("cc"))
-
-	case "from":
-		return m.matchString(msg.GetHeader("from"))
-
-	case "subject":
-		return m.matchString(msg.GetHeader("subject"))
-
-	case "to":
-		return m.matchString(msg.GetHeader("to"))
-
-	}
-
-	return false
+	return m.matchString(msg.GetHeader(strings.ToLower(m.Header)))
 }
 
 func (m matcher) matchString(s string) bool {
