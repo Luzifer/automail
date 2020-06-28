@@ -70,7 +70,7 @@ func main() {
 		imapClient *client.Client
 		messages   = make(chan *imap.Message, 1000)
 		needLogin  = make(chan struct{}, 1)
-		sigs       = make(chan os.Signal)
+		sigs       = make(chan os.Signal, 1)
 		ticker     = time.NewTicker(cfg.FetchInterval)
 	)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
