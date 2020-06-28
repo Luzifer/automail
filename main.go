@@ -66,33 +66,51 @@ func main() {
 		log.WithError(err).Fatal("Unable to load storage file")
 	}
 
-	imapClient, err := client.DialTLS(fmt.Sprintf("%s:%d", cfg.IMAPHost, cfg.IMAPPort), nil)
-	if err != nil {
-		log.WithError(err).Fatal("Unable to connect to IMAP server")
-	}
-	defer imapClient.Close()
-
-	if err = imapClient.Login(cfg.IMAPUser, cfg.IMAPPass); err != nil {
-		log.WithError(err).Fatal("Unable to login to IMAP server")
-	}
-
-	log.Info("IMAP connected and logged in")
-
-	if _, err = imapClient.Select(cfg.Mailbox, false); err != nil {
-		log.WithError(err).Fatal("Unable to select mailbox")
-	}
-
 	var (
-		messages = make(chan *imap.Message, 1000)
-		sigs     = make(chan os.Signal)
-		ticker   = time.NewTicker(cfg.FetchInterval)
+		imapClient *client.Client
+		messages   = make(chan *imap.Message, 1000)
+		needLogin  = make(chan struct{}, 1)
+		sigs       = make(chan os.Signal)
+		ticker     = time.NewTicker(cfg.FetchInterval)
 	)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	needLogin <- struct{}{}
 
 	for {
 		select {
 
+		case <-needLogin:
+			if imapClient != nil {
+				imapClient.Close()
+			}
+
+			imapClient, err = client.DialTLS(fmt.Sprintf("%s:%d", cfg.IMAPHost, cfg.IMAPPort), nil)
+			if err != nil {
+				log.WithError(err).Fatal("Unable to connect to IMAP server")
+			}
+
+			if err = imapClient.Login(cfg.IMAPUser, cfg.IMAPPass); err != nil {
+				log.WithError(err).Fatal("Unable to login to IMAP server")
+			}
+
+			log.Info("IMAP connected and logged in")
+
+			if _, err = imapClient.Select(cfg.Mailbox, false); err != nil {
+				log.WithError(err).Fatal("Unable to select mailbox")
+			}
+
+			go func() {
+				// Trigger re-login when log-out was received
+				<-imapClient.LoggedOut()
+				needLogin <- struct{}{}
+			}()
+
 		case <-ticker.C:
+			if _, err := imapClient.Select(cfg.Mailbox, false); err != nil {
+				log.WithError(err).Error("Unable to select mailbox")
+				continue
+			}
+
 			seq, err := imap.ParseSeqSet(fmt.Sprintf("%d:*", store.LastUID+1))
 			if err != nil {
 				log.WithError(err).Error("Unable to parse sequence set")
