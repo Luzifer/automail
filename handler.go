@@ -21,12 +21,20 @@ type mailHandler struct {
 }
 
 func (m mailHandler) Handles(msg *enmime.Envelope) bool {
+	if len(m.Match) == 0 {
+		// No matcher available: Should not match anything
+		return false
+	}
+
+	// Do an AND matching: As soon as one matcher fails the whole match fails
 	for _, ma := range m.Match {
-		if ma.Match(msg) {
-			return true
+		if !ma.Match(msg) {
+			return false
 		}
 	}
-	return false
+
+	// None has failed: It matches
+	return true
 }
 
 func (m mailHandler) Process(imapClient *client.Client, msg *imap.Message, envelope *enmime.Envelope) error {
