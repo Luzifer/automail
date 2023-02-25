@@ -25,7 +25,8 @@ var (
 		IMAPPass       string        `flag:"imap-pass,p" default:"" description:"Password to access the IMAP server" validate:"nonzero"`
 		LogLevel       string        `flag:"log-level" default:"info" description:"Log level (debug, info, warn, error, fatal)"`
 		Mailbox        string        `flag:"mailbox,m" default:"INBOX" description:"Mailbox to fetch from"`
-		StorageFile    string        `flag:"storage-file" default:"store.yaml" description:"Where to store persistent info"`
+		StorageType    string        `flag:"storage-type" default:"file" description:"Driver to use for storing persistent info"`
+		StorageDSN     string        `flag:"storage-dsn" default:"store.yaml" description:"Where to store persistent info"`
 		VersionAndExit bool          `flag:"version" default:"false" description:"Prints current version and exits"`
 	}{}
 
@@ -35,7 +36,7 @@ var (
 func init() {
 	rconfig.AutoEnv(true)
 	if err := rconfig.ParseAndValidate(&cfg); err != nil {
-		log.Fatalf("Unable to parse commandline options: %s", err)
+		log.WithError(err).Fatalf("parsing commandline options")
 	}
 
 	if cfg.VersionAndExit {
@@ -44,7 +45,7 @@ func init() {
 	}
 
 	if l, err := log.ParseLevel(cfg.LogLevel); err != nil {
-		log.WithError(err).Fatal("Unable to parse log level")
+		log.WithError(err).Fatal("parsing log level")
 	} else {
 		log.SetLevel(l)
 	}
@@ -53,17 +54,21 @@ func init() {
 func main() {
 	bodySection, err := imap.ParseBodySectionName("BODY[]")
 	if err != nil {
-		log.WithError(err).Fatal("Unable to parse body section")
+		log.WithError(err).Fatal("parsing body section")
 	}
 
 	conf, err := loadConfig()
 	if err != nil {
-		log.WithError(err).Fatal("Unable to load config")
+		log.WithError(err).Fatal("loading config")
 	}
 
-	store, err := loadStorage()
+	store, err := newStorage(cfg.StorageType, cfg.StorageDSN)
 	if err != nil {
-		log.WithError(err).Fatal("Unable to load storage file")
+		log.WithError(err).Fatal("creating storage interface")
+	}
+
+	if err = store.Load(); err != nil {
+		log.WithError(err).Fatal("loading persistent storage data")
 	}
 
 	var (
@@ -86,17 +91,17 @@ func main() {
 
 			imapClient, err = client.DialTLS(fmt.Sprintf("%s:%d", cfg.IMAPHost, cfg.IMAPPort), nil)
 			if err != nil {
-				log.WithError(err).Fatal("Unable to connect to IMAP server")
+				log.WithError(err).Fatal("connecting to IMAP server")
 			}
 
 			if err = imapClient.Login(cfg.IMAPUser, cfg.IMAPPass); err != nil {
-				log.WithError(err).Fatal("Unable to login to IMAP server")
+				log.WithError(err).Fatal("loggin in to IMAP server")
 			}
 
 			log.Info("IMAP connected and logged in")
 
 			if _, err = imapClient.Select(cfg.Mailbox, false); err != nil {
-				log.WithError(err).Fatal("Unable to select mailbox")
+				log.WithError(err).Fatal("selecting mailbox")
 			}
 
 			go func() {
@@ -107,13 +112,13 @@ func main() {
 
 		case <-ticker.C:
 			if _, err := imapClient.Select(cfg.Mailbox, false); err != nil {
-				log.WithError(err).Error("Unable to select mailbox")
+				log.WithError(err).Error("selecting mailbox")
 				continue
 			}
 
-			seq, err := imap.ParseSeqSet(fmt.Sprintf("%d:*", store.LastUID+1))
+			seq, err := imap.ParseSeqSet(fmt.Sprintf("%d:*", store.GetLastUID()+1))
 			if err != nil {
-				log.WithError(err).Error("Unable to parse sequence set")
+				log.WithError(err).Error("parsing sequence set")
 				continue
 			}
 
@@ -121,7 +126,7 @@ func main() {
 				Uid: seq,
 			})
 			if err != nil {
-				log.WithError(err).Error("Unable to search for messages")
+				log.WithError(err).Error("searching for messages")
 				continue
 			}
 
@@ -129,10 +134,10 @@ func main() {
 				continue
 			}
 
-			var tmpMsg = make(chan *imap.Message)
+			tmpMsg := make(chan *imap.Message)
 			go func() {
 				for msg := range tmpMsg {
-					if msg.Uid <= store.LastUID {
+					if msg.Uid <= store.GetLastUID() {
 						continue
 					}
 					messages <- msg
@@ -147,7 +152,7 @@ func main() {
 				imap.FetchItem("BODY.PEEK[]"),
 				imap.FetchUid,
 			}, tmpMsg); err != nil {
-				log.WithError(err).Error("Unable to fetch messages")
+				log.WithError(err).Error("fetching messages")
 				continue
 			}
 
@@ -163,7 +168,7 @@ func main() {
 
 			mail, err := enmime.ReadEnvelope(body)
 			if err != nil {
-				log.WithError(err).Error("Unable to parse message")
+				log.WithError(err).Error("parsing message")
 				continue
 			}
 
@@ -175,19 +180,19 @@ func main() {
 			// Check all handlers whether they want to handle the message
 			for _, hdl := range conf.Handlers {
 				if hdl.Handles(mail) {
-					go func(msg *imap.Message) {
+					go func(msg *imap.Message, hdl mailHandler) {
 						if err := hdl.Process(imapClient, msg, mail); err != nil {
-							log.WithError(err).Error("Error while processing message")
+							log.WithError(err).Error("processing message")
 						}
-					}(msg)
+					}(msg, hdl)
 				}
 			}
 
 			// Mark message as processed in store
-			if msg.Uid > store.LastUID {
-				store.LastUID = msg.Uid
-				if err = store.saveStorage(); err != nil {
-					log.WithError(err).Error("Unable to save storage")
+			if msg.Uid > store.GetLastUID() {
+				store.SetUID(msg.Uid)
+				if err = store.Save(); err != nil {
+					log.WithError(err).Error("saving storage")
 				}
 			}
 

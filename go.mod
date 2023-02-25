@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/Luzifer/rconfig/v2 v2.4.0
 	github.com/emersion/go-imap v1.2.1
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/jhillyerd/enmime v0.10.1
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0
@@ -13,6 +14,8 @@ require (
 
 require (
 	github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a // indirect
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/emersion/go-sasl v0.0.0-20220912192320-0145f2c60ead // indirect
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect
 	github.com/jaytaylor/html2text v0.0.0-20211105163654-bc68cce691ba // indirect

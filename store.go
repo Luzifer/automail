@@ -1,43 +1,133 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"path"
+	"strings"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
-type storage struct {
-	LastUID uint32
+const redisKeyPrefix = "io.luzifer.automail"
+
+type (
+	fileStorage struct {
+		LastUID  uint32
+		filename string
+	}
+
+	redisStorage struct {
+		LastUID uint32
+		client  *redis.Client
+	}
+
+	storage interface {
+		GetLastUID() uint32
+		Load() error
+		Save() error
+		SetUID(uint32)
+	}
+)
+
+func newStorage(sType, dsn string) (storage, error) {
+	switch sType {
+	case "file":
+		return &fileStorage{filename: dsn}, nil
+
+	case "redis":
+		return newRedisStorage(dsn)
+
+	default:
+		return nil, errors.Errorf("invalid storage type %q", sType)
+	}
 }
 
-func loadStorage() (*storage, error) {
-	var out = &storage{}
+// --- Storage implementation: File
 
-	if _, err := os.Stat(cfg.StorageFile); os.IsNotExist(err) {
-		return out, nil
+func (f fileStorage) GetLastUID() uint32 { return f.LastUID }
+
+func (f *fileStorage) Load() error {
+	if _, err := os.Stat(f.filename); os.IsNotExist(err) {
+		return nil
 	}
 
-	f, err := os.Open(cfg.StorageFile)
+	sf, err := os.Open(f.filename)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to open storage file")
+		return errors.Wrap(err, "opening storage file")
 	}
-	defer f.Close()
+	defer sf.Close()
 
-	return out, errors.Wrap(yaml.NewDecoder(f).Decode(out), "Unable to decode storage file")
+	return errors.Wrap(yaml.NewDecoder(sf).Decode(f), "decoding storage file")
 }
 
-func (s storage) saveStorage() error {
-	if err := os.MkdirAll(path.Dir(cfg.StorageFile), 0700); err != nil {
-		return errors.Wrap(err, "Unable to ensure directory for storage file")
+func (f fileStorage) Save() error {
+	if err := os.MkdirAll(path.Dir(f.filename), 0o700); err != nil {
+		return errors.Wrap(err, "ensuring directory for storage file")
 	}
 
-	f, err := os.Create(cfg.StorageFile)
+	sf, err := os.Create(f.filename)
 	if err != nil {
-		return errors.Wrap(err, "Unable to create storage file")
+		return errors.Wrap(err, "creating storage file")
 	}
-	defer f.Close()
+	defer sf.Close()
 
-	return errors.Wrap(yaml.NewEncoder(f).Encode(s), "Unable to encode storage file")
+	return errors.Wrap(yaml.NewEncoder(sf).Encode(f), "encoding storage file")
+}
+
+func (f *fileStorage) SetUID(uid uint32) { f.LastUID = uid }
+
+// --- Storage implementation: Redis
+
+func newRedisStorage(dsn string) (*redisStorage, error) {
+	opts, err := redis.ParseURL(dsn)
+	if err != nil {
+		return nil, errors.Wrap(err, "parsing storage DSN")
+	}
+
+	out := &redisStorage{}
+	out.client = redis.NewClient(opts)
+
+	return out, nil
+}
+
+func (r redisStorage) GetLastUID() uint32 { return r.LastUID }
+
+func (r *redisStorage) Load() error {
+	data, err := r.client.Get(context.Background(), r.key()).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil
+		}
+
+		return errors.Wrap(err, "loading persistent data from redis")
+	}
+
+	return errors.Wrap(json.Unmarshal(data, r), "decoding storage object")
+}
+
+func (r redisStorage) Save() error {
+	data, err := json.Marshal(r)
+	if err != nil {
+		return errors.Wrap(err, "marshalling storage object")
+	}
+
+	return errors.Wrap(
+		r.client.Set(context.Background(), r.key(), data, 0).Err(),
+		"saving persistent data to redis",
+	)
+}
+
+func (r *redisStorage) SetUID(uid uint32) { r.LastUID = uid }
+
+func (redisStorage) key() string {
+	prefix := redisKeyPrefix
+	if v := os.Getenv("REDIS_KEY_PREFIX"); v != "" {
+		prefix = v
+	}
+
+	return strings.Join([]string{prefix, "store"}, ":")
 }
