@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/base64"
 
-	"github.com/jhillyerd/enmime"
+	"github.com/jhillyerd/enmime/v2"
 )
 
 type attachmentTransport struct {

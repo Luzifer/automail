@@ -6,7 +6,7 @@ import (
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
-	"github.com/jhillyerd/enmime"
+	"github.com/jhillyerd/enmime/v2"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
