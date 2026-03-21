@@ -10,19 +10,21 @@ import (
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 	"github.com/jhillyerd/enmime/v2"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/Luzifer/rconfig/v2"
 )
+
+const messageChanLength = 1000
 
 var (
 	cfg = struct {
 		Config         string        `flag:"config,c" default:"config.yaml" description:"Configuration file with instruction"`
 		FetchInterval  time.Duration `flag:"interval,i" default:"1m" description:"Interval to fetch mails"`
-		IMAPHost       string        `flag:"imap-host,h" default:"" description:"Host of the IMAP server" validate:"nonzero"`
-		IMAPPort       int           `flag:"imap-port" default:"993" description:"Port of the IMAP server" validate:"nonzero"`
-		IMAPUser       string        `flag:"imap-user,u" default:"" description:"Username to access the IMAP server" validate:"nonzero"`
-		IMAPPass       string        `flag:"imap-pass,p" default:"" description:"Password to access the IMAP server" validate:"nonzero"`
+		IMAPHost       string        `flag:"imap-host,h" default:"" description:"Host of the IMAP server" validate:"nonzero"`            // revive:disable-line:struct-tag
+		IMAPPort       int           `flag:"imap-port" default:"993" description:"Port of the IMAP server" validate:"nonzero"`           // revive:disable-line:struct-tag
+		IMAPUser       string        `flag:"imap-user,u" default:"" description:"Username to access the IMAP server" validate:"nonzero"` // revive:disable-line:struct-tag
+		IMAPPass       string        `flag:"imap-pass,p" default:"" description:"Password to access the IMAP server" validate:"nonzero"` // revive:disable-line:struct-tag
 		LogLevel       string        `flag:"log-level" default:"info" description:"Log level (debug, info, warn, error, fatal)"`
 		Mailbox        string        `flag:"mailbox,m" default:"INBOX" description:"Mailbox to fetch from"`
 		StorageType    string        `flag:"storage-type" default:"file" description:"Driver to use for storing persistent info"`
@@ -33,47 +35,54 @@ var (
 	version = "dev"
 )
 
-func init() {
+func initApp() (err error) {
 	rconfig.AutoEnv(true)
-	if err := rconfig.ParseAndValidate(&cfg); err != nil {
-		log.WithError(err).Fatalf("parsing commandline options")
+	if err = rconfig.ParseAndValidate(&cfg); err != nil {
+		return fmt.Errorf("parsing CLI options: %w", err)
+	}
+
+	l, err := logrus.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		return fmt.Errorf("parsing log-level: %w", err)
+	}
+	logrus.SetLevel(l)
+
+	return nil
+}
+
+//nolint:funlen,gocognit,gocyclo
+func main() {
+	if err := initApp(); err != nil {
+		logrus.WithError(err).Fatal("initializing app")
 	}
 
 	if cfg.VersionAndExit {
-		fmt.Printf("automail %s\n", version)
+		fmt.Printf("automail %s\n", version) //nolint:forbidigo
 		os.Exit(0)
 	}
 
-	if l, err := log.ParseLevel(cfg.LogLevel); err != nil {
-		log.WithError(err).Fatal("parsing log level")
-	} else {
-		log.SetLevel(l)
-	}
-}
-
-func main() {
 	bodySection, err := imap.ParseBodySectionName("BODY[]")
 	if err != nil {
-		log.WithError(err).Fatal("parsing body section")
+		logrus.WithError(err).Fatal("parsing body section")
 	}
 
 	conf, err := loadConfig()
 	if err != nil {
-		log.WithError(err).Fatal("loading config")
+		logrus.WithError(err).Fatal("loading config")
 	}
 
 	store, err := newStorage(cfg.StorageType, cfg.StorageDSN)
 	if err != nil {
-		log.WithError(err).Fatal("creating storage interface")
+		logrus.WithError(err).Fatal("creating storage interface")
 	}
 
 	if err = store.Load(); err != nil {
-		log.WithError(err).Fatal("loading persistent storage data")
+		logrus.WithError(err).Fatal("loading persistent storage data")
 	}
 
 	var (
 		imapClient *client.Client
-		messages   = make(chan *imap.Message, 1000)
+		messages   = make(chan *imap.Message, messageChanLength)
 		needLogin  = make(chan struct{}, 1)
 		sigs       = make(chan os.Signal, 1)
 		ticker     = time.NewTicker(cfg.FetchInterval)
@@ -83,25 +92,24 @@ func main() {
 
 	for {
 		select {
-
 		case <-needLogin:
 			if imapClient != nil {
-				imapClient.Close()
+				_ = imapClient.Close()
 			}
 
 			imapClient, err = client.DialTLS(fmt.Sprintf("%s:%d", cfg.IMAPHost, cfg.IMAPPort), nil)
 			if err != nil {
-				log.WithError(err).Fatal("connecting to IMAP server")
+				logrus.WithError(err).Fatal("connecting to IMAP server")
 			}
 
 			if err = imapClient.Login(cfg.IMAPUser, cfg.IMAPPass); err != nil {
-				log.WithError(err).Fatal("loggin in to IMAP server")
+				logrus.WithError(err).Fatal("loggin in to IMAP server")
 			}
 
-			log.Info("IMAP connected and logged in")
+			logrus.Info("IMAP connected and logged in")
 
 			if _, err = imapClient.Select(cfg.Mailbox, false); err != nil {
-				log.WithError(err).Fatal("selecting mailbox")
+				logrus.WithError(err).Fatal("selecting mailbox")
 			}
 
 			go func() {
@@ -112,13 +120,13 @@ func main() {
 
 		case <-ticker.C:
 			if _, err := imapClient.Select(cfg.Mailbox, false); err != nil {
-				log.WithError(err).Error("selecting mailbox")
+				logrus.WithError(err).Error("selecting mailbox")
 				continue
 			}
 
 			seq, err := imap.ParseSeqSet(fmt.Sprintf("%d:*", store.GetLastUID()+1))
 			if err != nil {
-				log.WithError(err).Error("parsing sequence set")
+				logrus.WithError(err).Error("parsing sequence set")
 				continue
 			}
 
@@ -126,7 +134,7 @@ func main() {
 				Uid: seq,
 			})
 			if err != nil {
-				log.WithError(err).Error("searching for messages")
+				logrus.WithError(err).Error("searching for messages")
 				continue
 			}
 
@@ -152,7 +160,7 @@ func main() {
 				imap.FetchItem("BODY.PEEK[]"),
 				imap.FetchUid,
 			}, tmpMsg); err != nil {
-				log.WithError(err).Error("fetching messages")
+				logrus.WithError(err).Error("fetching messages")
 				continue
 			}
 
@@ -162,17 +170,17 @@ func main() {
 		case msg := <-messages:
 			body := msg.GetBody(bodySection)
 			if body == nil {
-				log.WithField("uid", msg.Uid).Debug("Got message with nil body")
+				logrus.WithField("uid", msg.Uid).Debug("Got message with nil body")
 				continue
 			}
 
 			mail, err := enmime.ReadEnvelope(body)
 			if err != nil {
-				log.WithError(err).Error("parsing message")
+				logrus.WithError(err).Error("parsing message")
 				continue
 			}
 
-			log.WithFields(log.Fields{
+			logrus.WithFields(logrus.Fields{
 				"subject": mail.GetHeader("subject"),
 				"uid":     msg.Uid,
 			}).Debug("Fetched message")
@@ -182,7 +190,7 @@ func main() {
 				if hdl.Handles(mail) {
 					go func(msg *imap.Message, hdl mailHandler) {
 						if err := hdl.Process(imapClient, msg, mail); err != nil {
-							log.WithError(err).Error("processing message")
+							logrus.WithError(err).Error("processing message")
 						}
 					}(msg, hdl)
 				}
@@ -192,10 +200,9 @@ func main() {
 			if msg.Uid > store.GetLastUID() {
 				store.SetUID(msg.Uid)
 				if err = store.Save(); err != nil {
-					log.WithError(err).Error("saving storage")
+					logrus.WithError(err).Error("saving storage")
 				}
 			}
-
 		}
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -38,20 +39,20 @@ func (m mailHandler) Handles(msg *enmime.Envelope) bool {
 }
 
 func (m mailHandler) Process(imapClient *client.Client, msg *imap.Message, envelope *enmime.Envelope) error {
-	cmd := exec.Command(m.Command[0], m.Command[1:]...)
+	cmd := exec.CommandContext(context.TODO(), m.Command[0], m.Command[1:]...) //#nosec:G204 // Intended to launch given command
 	cmd.Stderr = os.Stderr
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return errors.Wrap(err, "Unable to create stdin pipe")
 	}
-	defer stdin.Close()
+	defer stdin.Close() //nolint:errcheck
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return errors.Wrap(err, "Unable to create stdout pipe")
 	}
-	defer stdout.Close()
+	defer stdout.Close() //nolint:errcheck
 
 	go func() {
 		scanner := bufio.NewScanner(stdout)
@@ -61,7 +62,7 @@ func (m mailHandler) Process(imapClient *client.Client, msg *imap.Message, envel
 				return
 			}
 
-			var cw = new(commandTypeWrap)
+			cw := new(commandTypeWrap)
 			if err := json.Unmarshal(scanner.Bytes(), cw); err != nil {
 				log.WithError(err).Error("Unable to unmarshal command")
 				continue

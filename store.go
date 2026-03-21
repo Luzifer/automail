@@ -12,7 +12,10 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-const redisKeyPrefix = "io.luzifer.automail"
+const (
+	fileStoreDirMode = 0o700
+	redisKeyPrefix   = "io.luzifer.automail"
+)
 
 type (
 	fileStorage struct {
@@ -59,13 +62,13 @@ func (f *fileStorage) Load() error {
 	if err != nil {
 		return errors.Wrap(err, "opening storage file")
 	}
-	defer sf.Close()
+	defer sf.Close() //nolint:errcheck
 
 	return errors.Wrap(yaml.NewDecoder(sf).Decode(f), "decoding storage file")
 }
 
 func (f fileStorage) Save() error {
-	if err := os.MkdirAll(path.Dir(f.filename), 0o700); err != nil {
+	if err := os.MkdirAll(path.Dir(f.filename), fileStoreDirMode); err != nil {
 		return errors.Wrap(err, "ensuring directory for storage file")
 	}
 
@@ -73,7 +76,7 @@ func (f fileStorage) Save() error {
 	if err != nil {
 		return errors.Wrap(err, "creating storage file")
 	}
-	defer sf.Close()
+	defer sf.Close() //nolint:errcheck
 
 	return errors.Wrap(yaml.NewEncoder(sf).Encode(f), "encoding storage file")
 }

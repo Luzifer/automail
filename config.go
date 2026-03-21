@@ -18,7 +18,7 @@ func loadConfig() (*config, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to open config file")
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	return out, errors.Wrap(yaml.NewDecoder(f).Decode(out), "Unable to decode config")
 }

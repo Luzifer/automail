@@ -34,7 +34,7 @@ type mailTransport struct {
 }
 
 func mailToTransport(msg *enmime.Envelope) *mailTransport {
-	var out = &mailTransport{
+	out := &mailTransport{
 		Headers: map[string]string{},
 		HTML:    msg.HTML,
 		Text:    msg.Text,
