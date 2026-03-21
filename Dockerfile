@@ -1,4 +1,4 @@
-FROM golang:alpine as builder
+FROM golang:1.26-alpine AS builder
 
 COPY . /go/src/github.com/Luzifer/automail
 WORKDIR /go/src/github.com/Luzifer/automail
@@ -9,12 +9,13 @@ RUN set -ex \
       -ldflags "-X main.version=$(git describe --tags --always || echo dev)" \
       -mod=readonly
 
-FROM alpine:latest
+
+FROM alpine:3.23
 
 ENV CONFIG=/data/config.yml \
     STORAGE_FILE=/data/automail_store.yml
 
-LABEL maintainer "Knut Ahlers <knut@ahlers.me>"
+LABEL maintainer="Knut Ahlers <knut@ahlers.me>"
 
 RUN set -ex \
  && apk --no-cache add \
