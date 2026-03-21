@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 )
 
 type config struct {
@@ -12,7 +12,7 @@ type config struct {
 }
 
 func loadConfig() (*config, error) {
-	var out = &config{}
+	out := &config{}
 
 	f, err := os.Open(cfg.Config)
 	if err != nil {

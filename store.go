@@ -9,7 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 )
 
 const redisKeyPrefix = "io.luzifer.automail"
