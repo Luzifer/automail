@@ -1,9 +1,9 @@
 module github.com/Luzifer/automail
 
-go 1.24.3
+go 1.25
 
 require (
-	github.com/Luzifer/rconfig/v2 v2.6.1
+	github.com/Luzifer/rconfig/v2 v2.6.2
 	github.com/emersion/go-imap v1.2.1
 	github.com/jhillyerd/enmime/v2 v2.3.0
 	github.com/pkg/errors v0.9.1
