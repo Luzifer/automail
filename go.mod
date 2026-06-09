@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/Luzifer/rconfig/v2 v2.6.2
 	github.com/emersion/go-imap v1.2.1
-	github.com/jhillyerd/enmime/v2 v2.4.0
+	github.com/jhillyerd/enmime/v2 v2.4.1
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.20.0
 	github.com/sirupsen/logrus v1.9.4
