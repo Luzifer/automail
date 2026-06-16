@@ -10,7 +10,7 @@ RUN set -ex \
       -mod=readonly
 
 
-FROM alpine:3.24@sha256:f5064d3e5f88c467c714509f491853ab2d951932c5cad699c0cb969dcec6f3b4
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 
 ENV CONFIG=/data/config.yml \
     STORAGE_FILE=/data/automail_store.yml
