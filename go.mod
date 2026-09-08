@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/Luzifer/rconfig/v2 v2.6.2
 	github.com/emersion/go-imap v1.2.1
-	github.com/jhillyerd/enmime/v2 v2.4.1
+	github.com/jhillyerd/enmime/v2 v2.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/sirupsen/logrus v1.10.2
@@ -32,8 +32,8 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/net v0.54.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/validator.v2 v2.0.1 // indirect
 )
