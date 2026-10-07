@@ -1,6 +1,6 @@
 module github.com/Luzifer/automail
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/Luzifer/rconfig/v2 v2.6.2
@@ -32,8 +32,8 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/validator.v2 v2.0.1 // indirect
 )
