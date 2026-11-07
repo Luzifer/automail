@@ -3,7 +3,7 @@ module github.com/Luzifer/automail
 go 1.26.0
 
 require (
-	github.com/Luzifer/rconfig/v2 v2.6.2
+	github.com/Luzifer/rconfig/v2 v2.6.3
 	github.com/emersion/go-imap v1.2.1
 	github.com/jhillyerd/enmime/v2 v2.5.0
 	github.com/pkg/errors v0.9.1
